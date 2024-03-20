@@ -153,14 +153,69 @@ func (j *jobQueue) Head() (quartz.ScheduledJob, error) {
 // Pop implements quartz.JobQueue.
 func (j *jobQueue) Pop() (quartz.ScheduledJob, error) {
 	ctx := context.Background()
-	jobJSON, err := j.Redis.LPop(ctx, "jobQueue").Result()
+
+	// Generate a lock key for the jobQueue
+	lockKey := "jobQueueLock"
+
+	// Start a transaction
+	tx := j.Redis.TxPipeline()
+
+	// check if the lock is already acquired
+	lock := tx.Get(ctx, lockKey)
+
+	if _, err := tx.Exec(ctx); err != nil {
+		return nil, err
+	}
+
+	// Check if the lock is already acquired
+	if lock.Val() == "true" {
+		return nil, fmt.Errorf("lock already acquired")
+	}
+
+	// Acquire the lock
+	lockSet := tx.SetNX(ctx, lockKey, true, 0)
+
+	// Execute the transaction
+	_, err := tx.Exec(ctx)
 	if err != nil {
 		return nil, err
 	}
+
+	// Check if the lock was acquired successfully
+	if !lockSet.Val() {
+		return nil, fmt.Errorf("failed to acquire lock")
+	}
+
+	// Start a new transaction for the actual operation
+	tx = j.Redis.TxPipeline()
+
+	// Pop the job from the jobQueue list
+	jobJSON, err := tx.LPop(ctx, "jobQueue").Result()
+	if err != nil {
+		return nil, err
+	}
+
+	// Execute the transaction
+	_, err = tx.Exec(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// jobJSON, err := j.Redis.LPop(ctx, "jobQueue").Result()
+	// if err != nil {
+	// 	return nil, err
+	// }
+
 	// Deserialize jobJSON to quartz.ScheduledJob
 	// ...
 
 	job, err := unmarshal([]byte(jobJSON))
+	if err != nil {
+		return nil, err
+	}
+
+	// Release the lock
+	_, err = j.Redis.Del(ctx, lockKey).Result()
 	if err != nil {
 		return nil, err
 	}
@@ -170,13 +225,64 @@ func (j *jobQueue) Pop() (quartz.ScheduledJob, error) {
 // Push implements quartz.JobQueue.
 func (j *jobQueue) Push(job quartz.ScheduledJob) error {
 	ctx := context.Background()
+
+	// Generate a lock key for the jobQueue
+	lockKey := "jobQueueLock"
+
+	// Start a transaction
+	tx := j.Redis.TxPipeline()
+
+	// check if the lock is already acquired
+	lock := tx.Get(ctx, lockKey)
+
+	if _, err := tx.Exec(ctx); err != nil {
+		return err
+	}
+
+	// Check if the lock is already acquired
+	if lock.Val() == "true" {
+		return fmt.Errorf("lock already acquired")
+	}
+
+	// Acquire the lock
+	lockSet := tx.SetNX(ctx, lockKey, true, 0)
+
+	// Execute the transaction
+	_, err := tx.Exec(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Check if the lock was acquired successfully
+	if !lockSet.Val() {
+		return fmt.Errorf("failed to acquire lock")
+	}
+
+	// Start a new transaction for the actual operation
+	tx = j.Redis.TxPipeline()
+
 	// Serialize job to JSON
 	jobJSON, err := marshal(job)
 	if err != nil {
 		return err
 	}
-	err = j.Redis.RPush(ctx, "jobQueue", jobJSON).Err()
-	return err
+
+	// Add the job to the jobQueue list
+	tx.RPush(ctx, "jobQueue", jobJSON)
+
+	// Execute the transaction
+	_, err = tx.Exec(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Release the lock
+	_, err = j.Redis.Del(ctx, lockKey).Result()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // Remove implements quartz.JobQueue.
