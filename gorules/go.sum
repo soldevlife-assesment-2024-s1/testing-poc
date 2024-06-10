@@ -1,0 +1,4 @@
+github.com/goccy/go-json v0.10.2 h1:CrxCmQqYDkv1z7lO7Wbh2HN93uovUHgrECaO5ZrCXAU=
+github.com/goccy/go-json v0.10.2/go.mod h1:6MelG93GURQebXPDq3khkgXZkazVtN9CRI+MGFi0w8I=
+github.com/gorules/zen-go v0.1.0 h1:FV/diJuUa36nMPAjQF/MxaIqvq9f7do/4qVo4Oze2fA=
+github.com/gorules/zen-go v0.1.0/go.mod h1:6Jerth3JxlEGD9zxIbIwxy4G5p8cG5foqIM27bIybws=

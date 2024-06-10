@@ -5,12 +5,43 @@ import (
 	tasks "test-asynq/task"
 	"time"
 
+	"net/http"
+
 	"github.com/hibiken/asynq"
+	"github.com/hibiken/asynqmon"
 )
 
 const redisAddr = "localhost:6379"
 
+// func main() {
+// 	srv := asynq.NewServer(
+// 		asynq.RedisClientOpt{Addr: redisAddr},
+// 		asynq.Config{
+// 			// Specify how many concurrent workers to use
+// 			Concurrency: 10,
+// 			// Optionally specify multiple queues with different priority.
+// 			Queues: map[string]int{
+// 				"critical": 6,
+// 				"default":  3,
+// 				"low":      1,
+// 			},
+// 			// See the godoc for other configuration options
+// 		},
+// 	)
+
+// 	// mux maps a type to a handler
+// 	mux := asynq.NewServeMux()
+// 	mux.HandleFunc(tasks.TypeEmailDelivery, tasks.HandleEmailDeliveryTask)
+// 	mux.Handle(tasks.TypeImageResize, tasks.NewImageProcessor())
+// 	// ...register other handlers...
+
+// 	if err := srv.Run(mux); err != nil {
+// 		log.Fatalf("could not run server: %v", err)
+// 	}
+// }
+
 func main() {
+
 	client := asynq.NewClient(asynq.RedisClientOpt{Addr: redisAddr})
 	defer client.Close()
 
@@ -34,7 +65,7 @@ func main() {
 	//            Use ProcessIn or ProcessAt option.
 	// ------------------------------------------------------------
 
-	info, err = client.Enqueue(task, asynq.ProcessIn(24*time.Hour))
+	info, err = client.Enqueue(task, asynq.ProcessIn(1*time.Minute))
 	if err != nil {
 		log.Fatalf("could not schedule task: %v", err)
 	}
@@ -54,4 +85,43 @@ func main() {
 		log.Fatalf("could not enqueue task: %v", err)
 	}
 	log.Printf("enqueued task: id=%s queue=%s", info.ID, info.Queue)
+
+	go func() {
+		h := asynqmon.New(asynqmon.Options{
+			RootPath:     "/monitoring", // RootPath specifies the root for asynqmon app
+			RedisConnOpt: asynq.RedisClientOpt{Addr: redisAddr, DB: 0},
+		})
+
+		// Note: We need the tailing slash when using net/http.ServeMux.
+		http.Handle(h.RootPath()+"/", h)
+
+		// Go to http://localhost:8080/monitoring to see asynqmon homepage.
+		log.Fatal(http.ListenAndServe(":8080", nil))
+	}()
+
+	srv := asynq.NewServer(
+		asynq.RedisClientOpt{Addr: redisAddr},
+		asynq.Config{
+			// Specify how many concurrent workers to use
+			Concurrency: 10,
+			// Optionally specify multiple queues with different priority.
+			Queues: map[string]int{
+				"critical": 6,
+				"default":  3,
+				"low":      1,
+			},
+			// See the godoc for other configuration options
+		},
+	)
+
+	// mux maps a type to a handler
+	mux := asynq.NewServeMux()
+	mux.HandleFunc(tasks.TypeEmailDelivery, tasks.HandleEmailDeliveryTask)
+	mux.Handle(tasks.TypeImageResize, tasks.NewImageProcessor())
+	// ...register other handlers...
+
+	if err := srv.Run(mux); err != nil {
+		log.Fatalf("could not run server: %v", err)
+	}
+
 }

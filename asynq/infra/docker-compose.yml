@@ -8,4 +8,4 @@ services:
     image: hibiken/asynqmon:latest
     ports:
       - '8080:8080'
-    command: ./asynqmon --redis-url=redis://redis/0
+    command: ./asynqmon --redis-addr=redis:6379 --redis-db=0 ==redis-password=""
