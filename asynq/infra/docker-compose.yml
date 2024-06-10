@@ -8,6 +8,4 @@ services:
     image: hibiken/asynqmon:latest
     ports:
       - '8080:8080'
-    docker run --rm \
-    -p 8080:8080
-    hibiken/asynqmon --redis-addr=redis:6379
+    command: ./asynqmon --redis-url=redis://redis/0
