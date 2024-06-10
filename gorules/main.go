@@ -21,7 +21,21 @@ func main() {
 		panic(err)
 	}
 
-	response, err := decision.Evaluate(map[string]any{"level": "wood", "region": "asean"})
+	// response, err := decision.Evaluate(map[string]any{"level": "wood", "region": "asean"})
+	// if err != nil {
+	// 	panic(err)
+	// }
+
+	type Request struct {
+		Level  string `json:"level"`
+		Region string `json:"region"`
+	}
+
+	spec := Request{
+		Level:  "bronze",
+		Region: "middle_east",
+	}
+	response, err := decision.Evaluate(spec)
 	if err != nil {
 		panic(err)
 	}
