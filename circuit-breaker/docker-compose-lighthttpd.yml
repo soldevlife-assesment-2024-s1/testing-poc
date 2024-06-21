@@ -1,0 +1,6 @@
+version: '3.8'
+services:
+  lighttpd:
+    image: 'httpd'
+    ports:
+      - '2222:80'
